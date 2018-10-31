@@ -1,6 +1,7 @@
-import BlockRegistration, RegisterCore
+#import BlockRegistration,
+import RegisterCore
 using CenterIndexedArrays
-using Base.Test
+using Test
 
 nd = RegisterCore.NumDenom(3.5,10)
 @test RegisterCore.ratio(nd, 5) == 3.5/10
@@ -10,7 +11,7 @@ nd = RegisterCore.NumDenom(3.5f0,10)
 @test isa(RegisterCore.ratio(nd, 5), Float32)
 @test isa(RegisterCore.ratio(nd, 20), Float32)
 
-numer, denom = rand(3,3), rand(3,3)+0.5
+numer, denom = rand(3,3), rand(3,3).+0.5
 mm = RegisterCore.MismatchArray(numer, denom)
 r = CenterIndexedArray(numer./denom)
 @test RegisterCore.ratio(mm, 0.25) == r
