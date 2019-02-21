@@ -8,7 +8,6 @@ import Base: +, -, *, /
 import Base: eltype, getindex, ndims, pointer, setindex!, show, size
 import Base: unsafe_getindex
 import CenterIndexedArrays: CenterIndexedArray
-import Images: separate
 
 export
     # types
