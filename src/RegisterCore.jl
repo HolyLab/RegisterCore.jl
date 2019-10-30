@@ -72,14 +72,18 @@ NumDenom(n, d) = NumDenom(promote(n, d)...)
 (*)(n::Number, p::NumDenom) = NumDenom(n*p.num, n*p.denom)
 (*)(p::NumDenom, n::Number) = n*p
 (/)(p::NumDenom, n::Number) = NumDenom(p.num/n, p.denom/n)
-Base.one(::Type{NumDenom{T}}) where {T} = NumDenom(one(T),one(T))
-Base.one(p::NumDenom) = one(typeof(p))
+Base.oneunit(::Type{NumDenom{T}}) where {T} = NumDenom{T}(oneunit(T),oneunit(T))
+Base.oneunit(p::NumDenom) = oneunit(typeof(p))
 Base.zero(::Type{NumDenom{T}}) where {T} = NumDenom(zero(T),zero(T))
 Base.zero(p::NumDenom) = zero(typeof(p))
 Base.promote_rule(::Type{NumDenom{T1}}, ::Type{T2}) where {T1,T2<:Number} = NumDenom{promote_type(T1,T2)}
 Base.eltype(::Type{NumDenom{T}}) where {T} = T
 Base.convert(::Type{NumDenom{T}}, p::NumDenom{T}) where {T} = p
 Base.convert(::Type{NumDenom{T}}, p::NumDenom) where {T} = NumDenom{T}(p.num, p.denom)
+
+import Base: one
+@deprecate one(::Type{NumDenom{T}}) where T     oneunit(NumDenom{T})
+@deprecate one(p::NumDenom)                     oneunit(p)
 
 Base.round(::Type{NumDenom{T}}, p::NumDenom) where T = NumDenom{T}(round(T, p.num), round(T, p.denom))
 
