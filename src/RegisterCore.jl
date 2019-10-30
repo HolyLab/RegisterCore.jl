@@ -82,10 +82,6 @@ Base.eltype(::Type{NumDenom{T}}) where {T} = T
 Base.convert(::Type{NumDenom{T}}, p::NumDenom{T}) where {T} = p
 Base.convert(::Type{NumDenom{T}}, p::NumDenom) where {T} = NumDenom{T}(p.num, p.denom)
 
-import Base: one
-@deprecate one(::Type{NumDenom{T}}) where T     oneunit(NumDenom{T})
-@deprecate one(p::NumDenom)                     oneunit(p)
-
 Base.round(::Type{NumDenom{T}}, p::NumDenom) where T = NumDenom{T}(round(T, p.num), round(T, p.denom))
 
 Base.convert(::Type{F}, p::NumDenom) where F<:AbstractFloat = error("`convert($F, ::NumDenom)` is deliberately not defined, see `?NumDenom`.")
@@ -224,8 +220,6 @@ Choosing a `thresh` of zero will always return the ratio.
 end
 ratio(r::Real, thresh, fillval=NaN) = r
 
-@deprecate ratio(mm::AbstractArray, args...)  ratio.(mm, args...)
-
 (::Type{M})(::Type{T}, dims) where {M<:MismatchArray,T} = CenterIndexedArray(NumDenom{T}, dims)
 (::Type{M})(::Type{T}, dims...) where {M<:MismatchArray,T} = CenterIndexedArray(NumDenom{T}, dims)
 
@@ -351,5 +345,7 @@ end
 # For faster and type-stable slicing
 struct ColonFun end
 ColonFun(::Int) = Colon()
+
+include("deprecations.jl")
 
 end
