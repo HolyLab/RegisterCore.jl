@@ -212,23 +212,19 @@ function separate(mma::AbstractArray{M}) where M<:MismatchArray
 end
 
 """
-`r = ratio(mm, thresh, [fillval])` returns an array with the ratio
-`num/denom` at each location. `fillval` is used everywhere where
-`denom < thresh`, and `fillval`'s type determines the type of the
-output. The default is NaN.
-"""
-function ratio(mm::MismatchArray, thresh, fillval::T) where T
-    out = CenterIndexedArray(T, size(mm))
-    for I in eachindex(mm)
-        nd = mm[I]
-        out[I] = ratio(nd, thresh, fillval)
-    end
-    out
-end
-ratio(mm::MismatchArray, thresh) = ratio(mm, thresh, convert(eltype(eltype(mm)), NaN))
-@inline ratio(nd::NumDenom{T}, thresh, fillval=convert(T,NaN)) where {T} = nd.denom < thresh ? fillval : nd.num/nd.denom
+    r = ratio(nd::NumDenom, thresh, fillval=NaN)
 
-ratio(r::CenterIndexedArray{T}, thresh, fillval=convert(T,NaN)) where {T<:Real} = r
+Return `nd.num/nd.denom`, unless `nd.denom < thresh`, in which case return `fillval` converted
+to the same type as the ratio.
+Choosing a `thresh` of zero will always return the ratio.
+"""
+@inline function ratio(nd::NumDenom{T}, thresh, fillval=convert(T,NaN)) where {T}
+    r = nd.num/nd.denom
+    return nd.denom < thresh ? oftype(r, fillval) : r
+end
+ratio(r::Real, thresh, fillval=NaN) = r
+
+@deprecate ratio(mm::AbstractArray, args...)  ratio.(mm, args...)
 
 (::Type{M})(::Type{T}, dims) where {M<:MismatchArray,T} = CenterIndexedArray(NumDenom{T}, dims)
 (::Type{M})(::Type{T}, dims...) where {M<:MismatchArray,T} = CenterIndexedArray(NumDenom{T}, dims)

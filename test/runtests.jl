@@ -14,8 +14,8 @@ nd = RegisterCore.NumDenom(3.5f0,10)
 numer, denom = rand(3,3), rand(3,3).+0.5
 mm = RegisterCore.MismatchArray(numer, denom)
 r = CenterIndexedArray(numer./denom)
-@test RegisterCore.ratio(mm, 0.25) == r
-@test RegisterCore.ratio(r, 0.25) == r
+@test RegisterCore.ratio.(mm, 0.25) == r
+@test RegisterCore.ratio.(r, 0.25) == r
 
 # Finding the location of the minimum
 numer = [5,4,3,4.5,7].*[2,1,1.5,2,3]'
