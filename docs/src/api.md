@@ -6,15 +6,20 @@
 NumDenom
 ```
 
-## Functions
+## Functions related to NumDenom
 
 ```@docs
-highpass
 indmin_mismatch
 maxshift
 mismatcharrays
 ratio
 separate
+```
+
+## Utility functions
+
+```@docs
+highpass
 paddedview
 trimmedview
 ```

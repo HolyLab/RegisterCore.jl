@@ -77,6 +77,7 @@ Base.oneunit(p::NumDenom) = oneunit(typeof(p))
 Base.zero(::Type{NumDenom{T}}) where {T} = NumDenom(zero(T),zero(T))
 Base.zero(p::NumDenom) = zero(typeof(p))
 Base.promote_rule(::Type{NumDenom{T1}}, ::Type{T2}) where {T1,T2<:Number} = NumDenom{promote_type(T1,T2)}
+Base.promote_rule(::Type{NumDenom{T1}}, ::Type{NumDenom{T2}}) where {T1,T2} = NumDenom{promote_type(T1,T2)}
 Base.eltype(::Type{NumDenom{T}}) where {T} = T
 Base.convert(::Type{NumDenom{T}}, p::NumDenom{T}) where {T} = p
 Base.convert(::Type{NumDenom{T}}, p::NumDenom) where {T} = NumDenom{T}(p.num, p.denom)
@@ -89,17 +90,13 @@ Base.round(::Type{NumDenom{T}}, p::NumDenom) where T = NumDenom{T}(round(T, p.nu
 
 Base.convert(::Type{F}, p::NumDenom) where F<:AbstractFloat = error("`convert($F, ::NumDenom)` is deliberately not defined, see `?NumDenom`.")
 
-Base.show(io::IO, p::NumDenom) = print(io, "NumDenom(", p.num, ",", p.denom, ")")
-function Base.show(iocxt::IOContext, p::NumDenom)
-    if get(iocxt, :compact, true)
-      print(iocxt.io, "NumDenom(")
-      show(iocxt.io, p.num)
-      print(iocxt.io, ",")
-      show(iocxt.io, p.denom)
-      print(iocxt.io, ")")
-      return
-    end
-    show(iocxt.io,p)
+function Base.show(io::IO, p::NumDenom)
+    print(io, "NumDenom(")
+    show(io, p.num)
+    print(io, ",")
+    show(io, p.denom)
+    print(io, ")")
+    return
 end
 
 const MismatchArray{ND<:NumDenom,N,A} = CenterIndexedArray{ND,N,A}
@@ -252,8 +249,6 @@ will never choose an edge point.  `index` is a CartesianIndex into the
 arrays.
 """
 function indmin_mismatch(numdenom::MismatchArray{NumDenom{T},N}, thresh::Real) where {T,N}
-    trimedges(r::AbstractUnitRange) = first(r)+1:last(r)-1
-
     imin = CartesianIndex(ntuple(d->0, Val(N)))
     rmin = typemax(T)
     threshT = convert(T, thresh)
@@ -270,11 +265,20 @@ function indmin_mismatch(numdenom::MismatchArray{NumDenom{T},N}, thresh::Real) w
     return imin
 end
 
-function indmin_mismatch(r::CenterIndexedArray{T}) where T<:Number
-    ind = ind2sub(size(r), argmin(r.data))
-    indctr = map(d->ind[d]-(size(r,d)+1)>>1, (1:ndims(r)...,))
-    CartesianIndex(indctr)
+function indmin_mismatch(r::CenterIndexedArray{T,N}) where {T<:Number,N}
+    imin = CartesianIndex(ntuple(d->0, Val(N)))
+    rmin = typemax(T)
+    @inbounds for I in CartesianIndices(map(trimedges, axes(r)))
+        rval = r[I]
+        if rval < rmin
+            imin = I
+            rmin = rval
+        end
+    end
+    return imin
 end
+
+trimedges(r::AbstractUnitRange) = first(r)+1:last(r)-1
 
 ### Miscellaneous
 
@@ -316,12 +320,12 @@ _paddedview(A::SubArray{T,N,P,I}, newindexes, newsize) where {T,N,P,I} =
     d = length(newindexes)+1
     _paddedview(A, (newindexes..., pdindex(A.parent, d, index)), pdsize(A.parent, newsize, d, index), indexes...)
 end
-pdindex(A, d, i::Colon) = i
+pdindex(A, d, i::Base.Slice) = i
 pdindex(A, d, i::Real) = i
 pdindex(A, d, i::UnitRange) = 1:size(A,d)
 pdindex(A, d, i) = error("Cannot pad with an index of type ", typeof(i))
 
-pdsize(A, newsize, d, i::Colon) = tuple(newsize..., size(A,d))
+pdsize(A, newsize, d, i::Base.Slice) = tuple(newsize..., size(A,d))
 pdsize(A, newsize, d, i::Real) = newsize
 pdsize(A, newsize, d, i::UnitRange) = tuple(newsize..., size(A,d))
 
@@ -343,7 +347,6 @@ _trimmedview(Bpad, P, d, newindexes) = view(Bpad, newindexes...)
     Bsz == Psz || throw(DimensionMismatch("dimension $dB of Bpad has size $Bsz, should have size $Psz"))
     _trimmedview(Bpad, P, d+1, (newindexes..., index), indexes...)
 end
-
 
 # For faster and type-stable slicing
 struct ColonFun end
