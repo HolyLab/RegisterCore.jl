@@ -1,7 +1,6 @@
 module RegisterCore
 
 using CenterIndexedArrays
-using Base.Cartesian: @nloops, @nref, @ntuple
 using Images, ColorTypes
 
 import Base: +, -, *, /
@@ -248,27 +247,23 @@ considers only those points for which `denom .> thresh`; moreover, it
 will never choose an edge point.  `index` is a CartesianIndex into the
 arrays.
 """
-@generated function indmin_mismatch(numdenom::MismatchArray, thresh::Real)
-    N = ndims(numdenom)
-    T = eltype(eltype(numdenom))
-    icenter = ntuple(d->0, N)
-    quote
-        imin = $icenter   # default is center of the array
-        rmin = typemax($T)
-        threshT = convert($T, thresh)
-        halfsize = numdenom.halfsize
-        @inbounds @nloops $N i d->-halfsize[d]+1:halfsize[d]-1 begin
-            nd = @nref $N numdenom i
-            if nd.denom > threshT
-                r = nd.num/nd.denom
-                if r < rmin
-                    imin = @ntuple $N i
-                    rmin = r
-                end
+function indmin_mismatch(numdenom::MismatchArray{NumDenom{T},N}, thresh::Real) where {T,N}
+    trimedges(r::AbstractUnitRange) = first(r)+1:last(r)-1
+
+    imin = CartesianIndex(ntuple(d->0, Val(N)))
+    rmin = typemax(T)
+    threshT = convert(T, thresh)
+    @inbounds for I in CartesianIndices(map(trimedges, axes(numdenom)))
+        nd = numdenom[I]
+        if nd.denom > threshT
+            r = nd.num/nd.denom
+            if r < rmin
+                imin = I
+                rmin = r
             end
         end
-        CartesianIndex(imin)
     end
+    return imin
 end
 
 function indmin_mismatch(r::CenterIndexedArray{T}) where T<:Number
