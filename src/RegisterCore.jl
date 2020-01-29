@@ -109,7 +109,7 @@ preparation for interpolation.
 function (::Type{M})(num::AbstractArray, denom::AbstractArray) where M<:MismatchArray
     size(num) == size(denom) || throw(DimensionMismatch("num and denom must have the same size"))
     T = promote_type(eltype(num), eltype(denom))
-    numdenom = CenterIndexedArray(NumDenom{T}, size(num))
+    numdenom = CenterIndexedArray{NumDenom{T}}(undef, size(num))
     _packnd!(numdenom, num, denom)
 end
 
@@ -217,8 +217,8 @@ Choosing a `thresh` of zero will always return the ratio.
 end
 ratio(r::Real, thresh, fillval=NaN) = r
 
-(::Type{M})(::Type{T}, dims) where {M<:MismatchArray,T} = CenterIndexedArray(NumDenom{T}, dims)
-(::Type{M})(::Type{T}, dims...) where {M<:MismatchArray,T} = CenterIndexedArray(NumDenom{T}, dims)
+(::Type{M})(::Type{T}, dims::Dims) where {M<:MismatchArray,T} = CenterIndexedArray{NumDenom{T}}(undef, dims)
+(::Type{M})(::Type{T}, dims::Integer...) where {M<:MismatchArray,T} = CenterIndexedArray{NumDenom{T}}(undef, dims)
 
 function Base.copyto!(M::MismatchArray, nd::Tuple{AbstractArray, AbstractArray})
     num, denom = nd
