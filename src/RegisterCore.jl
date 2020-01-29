@@ -1,12 +1,9 @@
 module RegisterCore
 
 using CenterIndexedArrays
-using Images, ColorTypes
+using ImageCore, ImageFiltering
 
 import Base: +, -, *, /
-import Base: eltype, getindex, ndims, pointer, setindex!, show, size
-import Base: unsafe_getindex
-import CenterIndexedArrays: CenterIndexedArray
 
 export
     # types
