@@ -2,6 +2,10 @@ using RegisterCore
 using CenterIndexedArrays, ImageCore, Interpolations
 using Test
 
+const IdentityUnitRange = isdefined(Base, :IdentityUnitRange) ?
+                          Base.IdentityUnitRange :
+                          Base.Slice
+
 @testset "NumDenom and arrays" begin
     nd = NumDenom(3.5,10)
     @test ratio(nd, 5) == 3.5/10
@@ -25,7 +29,7 @@ using Test
     @test String(take!(io)) == "NumDenom(3.5f0,10.0f0)"
 
     mm = MismatchArray(Float16, (3, 3))
-    @test axes(mm) == Base.IdentityUnitRange.((-1:1, -1:1))
+    @test axes(mm) == IdentityUnitRange.((-1:1, -1:1))
 
     numer, denom = rand(3,3), rand(3,3).+0.5
     mm = MismatchArray(numer, denom)
