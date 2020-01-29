@@ -1,5 +1,5 @@
 using RegisterCore
-using CenterIndexedArrays, ColorTypes, Interpolations
+using CenterIndexedArrays, ImageCore, Interpolations
 using Test
 
 @testset "NumDenom and arrays" begin
