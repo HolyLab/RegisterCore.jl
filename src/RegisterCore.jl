@@ -2,6 +2,7 @@ module RegisterCore
 
 using CenterIndexedArrays
 using ImageCore, ImageFiltering
+using Requires
 
 import Base: +, -, *, /
 
@@ -10,6 +11,7 @@ export
     MismatchArray,
     NumDenom,
     ColonFun,
+    PreprocessSNF,
     # functions
     highpass,
     indmin_mismatch,
@@ -28,6 +30,7 @@ The major functions/types exported by this module are:
 - `separate`: splits a `NumDenom` array into its component `num,denom` arrays
 - `indmin_mismatch`: find the location of the minimum mismatch
 - `highpass`: highpass filter an image before performing registration
+- `PreprocessSNF`: shot-noise standardization and filtering
 
 """
 RegisterCore
@@ -298,6 +301,53 @@ end
 highpass(data::AbstractArray{T}, sigma) where {T<:AbstractFloat} = highpass(T, data, sigma)
 highpass(data::AbstractArray, sigma) = highpass(Float32, data, sigma)
 
+"""
+`pp = PreprocessSNF(bias, sigmalp, sigmahp)` constructs an object that
+can be used to pre-process an image as `pp(img)`. The "SNF" part of
+the name means "shot-noise filtered," meaning that this preprocessor
+is specifically designed for situations in which you are dominated by
+shot noise (i.e., from photon-counting statistics).
+
+The processing is of the form
+```
+    imgout = bandpass(√max(0,img-bias))
+```
+i.e., the image is bias-subtracted, square-root transformed (to turn
+shot noise into constant variance), and then band-pass filtered using
+Gaussian filters of width `sigmalp` (for the low-pass) and `sigmahp`
+(for the high-pass).  You can pass `sigmalp=zeros(n)` to skip low-pass
+filtering, and `sigmahp=fill(Inf, n)` to skip high-pass filtering.
+"""
+mutable struct PreprocessSNF  # Shot-noise filtered
+    bias::Float32
+    sigmalp::Vector{Float32}
+    sigmahp::Vector{Float32}
+end
+# PreprocessSNF(bias::T, sigmalp, sigmahp) = PreprocessSNF{T}(bias, T[sigmalp...], T[sigmahp...])
+
+function preprocess(pp::PreprocessSNF, A::AbstractArray)
+    Af = sqrt_subtract_bias(A, pp.bias)
+    imfilter(highpass(Af, pp.sigmahp), KernelFactors.IIRGaussian((pp.sigmalp...,)), NA())
+end
+(pp::PreprocessSNF)(A::AbstractArray) = preprocess(pp, A)
+# For SubArrays, extend to the parent along any non-sliced
+# dimension. That way, we keep any information from padding.
+function (pp::PreprocessSNF)(A::SubArray)
+    Bpad = preprocess(pp, paddedview(A))
+    trimmedview(Bpad, A)
+end
+# ImageMeta method is defined under @require in __init__
+
+function sqrt_subtract_bias(A, bias)
+#    T = typeof(sqrt(one(promote_type(eltype(A), typeof(bias)))))
+    T = Float32
+    out = Array{T}(undef, size(A))
+    for I in eachindex(A)
+        @inbounds out[I] = sqrt(max(zero(T), convert(T, A[I]) - bias))
+    end
+    out
+end
+
 
 """
 `Apad = paddedview(A)`, for a SubArray `A`, returns a SubArray that
@@ -342,6 +392,12 @@ end
 # For faster and type-stable slicing
 struct ColonFun end
 ColonFun(::Int) = Colon()
+
+function __init__()
+    @require ImageMetadata="bc367c6b-8a6b-528e-b4bd-a4b897500b49" begin
+        (pp::PreprocessSNF)(A::ImageMetadata.ImageMeta) = ImageMetadata.shareproperties(A, pp(ImageMetadata.arraydata(A)))
+    end
+end
 
 include("deprecations.jl")
 

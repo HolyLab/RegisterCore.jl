@@ -20,6 +20,7 @@ separate
 
 ```@docs
 highpass
+PreprocessSNF
 paddedview
 trimmedview
 ```

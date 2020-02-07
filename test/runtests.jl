@@ -1,5 +1,5 @@
 using RegisterCore
-using CenterIndexedArrays, ImageCore, Interpolations
+using CenterIndexedArrays, ImageCore, ImageMetadata, Interpolations
 using Test
 
 @testset "NumDenom and arrays" begin
@@ -97,6 +97,27 @@ end
     af = float.(a)
     ahp = highpass(af, (2,))
     @test all(x->abs(x)<1e-12, ahp)
+end
+
+@testset "PreprocessSNF" begin
+    A = [200 100; 10 1000]
+    pp = PreprocessSNF(100, [0,0], [Inf,Inf])
+    @test pp(A) ≈ [10 0; 0 30]
+
+    B = fill(1000, 21, 17)
+    B[10:11,8:9] .+= A
+    pp = PreprocessSNF(100, [0,0], [3,3])
+    ppB = pp(B)
+    @test count(x->abs(x) < 1e-8, ppB) == length(B)-3
+    @test count(x->abs(x) > 1, ppB[10:11,8:9]) == 3
+
+    B = [1000*(isodd(i) ⊻ isodd(j)) for i = 1:21, j=1:17]
+    pp = PreprocessSNF(100, [2,2], [Inf,Inf])
+    ppB = pp(B)
+    @test all(x->14<x<16, ppB)
+
+    Bmeta = ImageMeta(B, date="today")
+    @test isa(pp(Bmeta), ImageMeta)
 end
 
 @testset "Padding and trimming" begin
