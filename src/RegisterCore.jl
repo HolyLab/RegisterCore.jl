@@ -254,21 +254,25 @@ function separate(mma::AbstractArray{M}) where {M <: MismatchArray}
 end
 
 """
-    r = ratio(nd::NumDenom, thresh, fillval=NaN)
-    r = ratio(r::Real, thresh, fillval=NaN)
+    r = ratio(nd::NumDenom, thresh; fillval=NaN)
+    r = ratio(r::Real, thresh; fillval=NaN)
 
 Return the ratio `nd.num/nd.denom`, or `fillval` (converted to the ratio type) when
 `nd.denom < thresh`. Setting `thresh = 0` always returns the ratio.
 
 The second form accepts a plain `Real` and returns it unchanged, regardless of `thresh`
-and `fillval`. This allows callers to handle both [`NumDenom`](@ref) and pre-computed
-ratio arrays uniformly.
+and `fillval` — `thresh` and `fillval` are silently ignored. This allows callers to
+handle both [`NumDenom`](@ref) and pre-computed ratio arrays uniformly without
+branching on the element type.
 """
-@inline function ratio(nd::NumDenom{T}, thresh, fillval = convert(T, NaN)) where {T}
+@inline function ratio(nd::NumDenom{T}, thresh; fillval = convert(T, NaN)) where {T}
     r = nd.num / nd.denom
     return nd.denom < thresh ? oftype(r, fillval) : r
 end
-ratio(r::Real, thresh, fillval = NaN) = r
+ratio(r::Real, thresh; fillval = NaN) = r
+
+@deprecate(ratio(nd::NumDenom{T}, thresh, fillval) where {T}, ratio(nd, thresh; fillval=fillval))
+@deprecate(ratio(r::Real, thresh, fillval), ratio(r, thresh))
 
 (::Type{M})(::Type{T}, dims::Dims) where {M <: MismatchArray, T} = CenterIndexedArray{NumDenom{T}}(undef, dims)
 (::Type{M})(::Type{T}, dims::Integer...) where {M <: MismatchArray, T} = CenterIndexedArray{NumDenom{T}}(undef, dims)
