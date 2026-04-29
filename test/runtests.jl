@@ -60,6 +60,19 @@ using ExplicitImports
 
     @test round(NumDenom{Int}, NumDenom(1.2, 4.8)) === NumDenom{Int}(1, 5)
 
+    # promote_rule for NumDenom + plain Number (line 80)
+    @test promote_type(NumDenom{Int}, Float64) == NumDenom{Float64}
+
+    # identity convert when T matches (line 83)
+    @test convert(NumDenom{Float32}, NumDenom(1.5f0, 2.0f0)) === NumDenom(1.5f0, 2.0f0)
+
+    # vararg integer dims constructor (line 225)
+    mm2 = MismatchArray(Float32, 3, 3)
+    @test axes(mm2) == Base.IdentityUnitRange.((-1:1, -1:1))
+
+    # ColonFun constructor (line 395)
+    @test ColonFun(5) === Colon()
+
     # Finding the location of the minimum
     numer = [5, 4, 3, 4.5, 7] .* [2, 1, 1.5, 2, 3]'
     numer[1, 5] = -1  # on the edge, so it shouldn't be selected
@@ -120,6 +133,13 @@ end
 
     Bmeta = ImageMeta(B, date = "today")
     @test isa(pp(Bmeta), ImageMeta)
+
+    # PreprocessSNF on a SubArray (lines 336–338)
+    Bbig = fill(1000, 21, 17)
+    pp2 = PreprocessSNF(100, [0, 0], [Inf, Inf])
+    S = view(Bbig, 2:20, 2:16)
+    ppS = pp2(S)
+    @test size(ppS) == size(S)
 end
 
 @testset "Aqua" begin
@@ -150,4 +170,9 @@ end
     S = view(A, :, 1:3, 2)
     Spad = paddedview(S)
     @test Spad == A[:, :, 2]
+
+    # pdindex error for unsupported index type (line 368)
+    A3 = reshape(1:8, 2, 2, 2)
+    S_bad = view(A3, [1, 2], :, 1)
+    @test_throws ErrorException paddedview(S_bad)
 end
