@@ -1,6 +1,6 @@
 name = "RegisterCore"
 uuid = "67712758-55e7-5c3c-8e85-dda1d7758434"
-version = "0.2.5"
+version = "1.0.0"
 authors = ["Tim Holy <tim.holy@gmail.com>"]
 
 [deps]
