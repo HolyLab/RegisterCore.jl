@@ -2,6 +2,7 @@ using RegisterCore
 using CenterIndexedArrays, ImageCore, ImageMetadata, Interpolations
 using Test
 using Aqua
+using ExplicitImports
 
 @testset "NumDenom and arrays" begin
     nd = NumDenom(3.5, 10)
@@ -123,6 +124,10 @@ end
 
 @testset "Aqua" begin
     Aqua.test_all(RegisterCore)
+end
+
+@testset "ExplicitImports" begin
+    @test check_no_implicit_imports(RegisterCore) === nothing
 end
 
 @testset "Padding and trimming" begin
