@@ -1,6 +1,7 @@
 using RegisterCore
 using CenterIndexedArrays, ImageCore, ImageMetadata, Interpolations
 using Test
+using Aqua
 
 @testset "NumDenom and arrays" begin
     nd = NumDenom(3.5, 10)
@@ -118,6 +119,10 @@ end
 
     Bmeta = ImageMeta(B, date = "today")
     @test isa(pp(Bmeta), ImageMeta)
+end
+
+@testset "Aqua" begin
+    Aqua.test_all(RegisterCore)
 end
 
 @testset "Padding and trimming" begin
