@@ -320,9 +320,9 @@ Gaussian filters of width `sigmalp` (for the low-pass) and `sigmahp`
 filtering, and `sigmahp=fill(Inf, n)` to skip high-pass filtering.
 """
 mutable struct PreprocessSNF  # Shot-noise filtered
-    bias::Float32
-    sigmalp::Vector{Float32}
-    sigmahp::Vector{Float32}
+    const bias::Float32
+    const sigmalp::Vector{Float32}
+    const sigmahp::Vector{Float32}
 end
 # PreprocessSNF(bias::T, sigmalp, sigmahp) = PreprocessSNF{T}(bias, T[sigmalp...], T[sigmahp...])
 
