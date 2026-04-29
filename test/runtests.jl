@@ -78,12 +78,12 @@ using ExplicitImports
     numer[1, 5] = -1  # on the edge, so it shouldn't be selected
     denom = ones(5, 5)
     mma = MismatchArray(numer, denom)
-    @test indmin_mismatch(mma, 0) == CartesianIndex((0, -1))
+    @test argmin_mismatch(mma, 0) == CartesianIndex((0, -1))
     denom = reshape(float(1:25), 5, 5)
     mma = MismatchArray(numer, denom)
-    @test indmin_mismatch(mma, 0) == CartesianIndex((0, 1))
+    @test argmin_mismatch(mma, 0) == CartesianIndex((0, 1))
     rat = ratio.(mma, 0.5)
-    @test indmin_mismatch(rat) == CartesianIndex((0, 1))
+    @test argmin_mismatch(rat) == CartesianIndex((0, 1))
 end
 
 @testset "mismatcharrays and separate" begin

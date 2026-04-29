@@ -14,8 +14,8 @@ export
     ColonFun,
     PreprocessSNF,
     # functions
+    argmin_mismatch,
     highpass,
-    indmin_mismatch,
     maxshift,
     mismatcharrays,
     ratio,
@@ -40,7 +40,7 @@ Core types and utilities for image registration mismatch computations.
 - [`ratio`](@ref): convert `NumDenom` to a scalar ratio, with threshold masking
 - [`maxshift`](@ref): return the maximum-shift half-size of a `MismatchArray`
 - [`mismatcharrays`](@ref): pack array-of-arrays pairs into an array of `MismatchArray`s
-- [`indmin_mismatch`](@ref): find the shift index of the minimum mismatch
+- [`argmin_mismatch`](@ref): find the shift index of the minimum mismatch
 - [`highpass`](@ref): high-pass filter an image (Gaussian-based, NaN-safe)
 - [`paddedview`](@ref) / [`trimmedview`](@ref): extend/trim a `SubArray` to/from its parent
 """
@@ -286,8 +286,8 @@ end
 #### Utility functions ####
 
 """
-    index = indmin_mismatch(numdenom::MismatchArray, thresh::Real)
-    index = indmin_mismatch(r::CenterIndexedArray{<:Number})
+    index = argmin_mismatch(numdenom::MismatchArray, thresh::Real)
+    index = argmin_mismatch(r::CenterIndexedArray{<:Number})
 
 Return the `CartesianIndex` of the minimum mismatch, excluding edge points.
 
@@ -302,7 +302,7 @@ always excluded from consideration.
 If no valid point is found (e.g., all `denom ≤ thresh`), returns a zero
 `CartesianIndex` — check for this case before using the result as an array index.
 """
-function indmin_mismatch(numdenom::MismatchArray{NumDenom{T}, N}, thresh::Real) where {T, N}
+function argmin_mismatch(numdenom::MismatchArray{NumDenom{T}, N}, thresh::Real) where {T, N}
     imin = CartesianIndex(ntuple(d -> 0, Val(N)))
     rmin = typemax(T)
     threshT = convert(T, thresh)
@@ -319,7 +319,7 @@ function indmin_mismatch(numdenom::MismatchArray{NumDenom{T}, N}, thresh::Real) 
     return imin
 end
 
-function indmin_mismatch(r::CenterIndexedArray{T, N}) where {T <: Number, N}
+function argmin_mismatch(r::CenterIndexedArray{T, N}) where {T <: Number, N}
     imin = CartesianIndex(ntuple(d -> 0, Val(N)))
     rmin = typemax(T)
     @inbounds for I in CartesianIndices(map(trimedges, axes(r)))
