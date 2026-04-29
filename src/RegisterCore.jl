@@ -1,8 +1,9 @@
 module RegisterCore
 
-using CenterIndexedArrays
-using ImageCore, ImageFiltering
-using Requires
+using CenterIndexedArrays: CenterIndexedArrays, CenterIndexedArray
+using ImageCore: ImageCore, Gray, gray
+using ImageFiltering: ImageFiltering, KernelFactors, NA, imfilter
+using Requires: Requires, @require
 
 import Base: +, -, *, /
 
