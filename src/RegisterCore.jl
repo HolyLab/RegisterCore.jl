@@ -399,6 +399,4 @@ function __init__()
     end
 end
 
-include("deprecations.jl")
-
 end
