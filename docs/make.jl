@@ -7,7 +7,11 @@ makedocs(
         prettyurls = get(ENV, "CI", nothing) == "true"
     ),
     modules = [RegisterCore],
-    pages = ["index.md", "api.md"]
+    checkdocs = :exports,
+    pages = [
+        "Overview" => "index.md",
+        "API Reference" => "api.md",
+    ]
 )
 
 deploydocs(

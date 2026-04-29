@@ -74,7 +74,7 @@ corresponds to an identical shift in the opposite direction.
 
 ## NumDenom
 
-Mismatch computations actually return two numbers, conventionaly
+Mismatch computations actually return two numbers, conventionally
 called `num` and `denom` packed into a type called `NumDenom`.
 `num` represents the "numerator" of the mismatch,
 and always holds the sum-of-squared-differences.  In our example above,
@@ -86,6 +86,31 @@ julia> D[1,0].num
 
 julia> sum((img[1:end-1,:] - img[2:end,:]).^2)
 24
+```
+
+`NumDenom` supports vector-space arithmetic, which enables interpolation
+of mismatch arrays. A brief example without `RegisterMismatch`:
+
+```jldoctest
+julia> using RegisterCore
+
+julia> a = NumDenom(3.0, 10.0)
+NumDenom(3.0,10.0)
+
+julia> b = NumDenom(1.0, 6.0)
+NumDenom(1.0,6.0)
+
+julia> a + b
+NumDenom(4.0,16.0)
+
+julia> 0.5 * a
+NumDenom(1.5,5.0)
+
+julia> ratio(a, 0.0)
+0.3
+
+julia> ratio(NumDenom(0.0, 1e-6), 0.0)
+0.0
 ```
 
 One key thing to note is that this sum-of-squared-differences

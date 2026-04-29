@@ -4,9 +4,12 @@
 
 ```@docs
 NumDenom
+MismatchArray
+ColonFun
+PreprocessSNF
 ```
 
-## Functions related to NumDenom
+## MismatchArray functions
 
 ```@docs
 indmin_mismatch
@@ -20,7 +23,6 @@ separate
 
 ```@docs
 highpass
-PreprocessSNF
 paddedview
 trimmedview
 ```
