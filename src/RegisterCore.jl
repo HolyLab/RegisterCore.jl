@@ -24,40 +24,51 @@ export
     trimmedview
 
 """
-The major functions/types exported by this module are:
+Core types and utilities for image registration mismatch computations.
 
-- `NumDenom` and `MismatchArray`: packed pair representation of
-  `(num,denom)` mismatch data
-- `separate`: splits a `NumDenom` array into its component `num,denom` arrays
-- `indmin_mismatch`: find the location of the minimum mismatch
-- `highpass`: highpass filter an image before performing registration
-- `PreprocessSNF`: shot-noise standardization and filtering
+**Types**
+- [`NumDenom`](@ref): a packed `(numerator, denominator)` pair; supports vector-space
+  arithmetic for use with `Interpolations.jl`
+- [`MismatchArray`](@ref): a `CenterIndexedArray` of `NumDenom` elements representing
+  mismatch over a range of shifts
+- [`PreprocessSNF`](@ref): shot-noise–filtering image preprocessor (bias subtract,
+  square-root transform, band-pass filter)
+- [`ColonFun`](@ref): callable singleton returning `Colon()`, for type-stable slicing
 
+**Functions**
+- [`separate`](@ref): unpack a `NumDenom` or `MismatchArray` into `(num, denom)` arrays
+- [`ratio`](@ref): convert `NumDenom` to a scalar ratio, with threshold masking
+- [`maxshift`](@ref): return the maximum-shift half-size of a `MismatchArray`
+- [`mismatcharrays`](@ref): pack array-of-arrays pairs into an array of `MismatchArray`s
+- [`indmin_mismatch`](@ref): find the shift index of the minimum mismatch
+- [`highpass`](@ref): high-pass filter an image (Gaussian-based, NaN-safe)
+- [`paddedview`](@ref) / [`trimmedview`](@ref): extend/trim a `SubArray` to/from its parent
 """
 RegisterCore
 
 """
     x = NumDenom(num, denom)
 
-`NumDenom{T}` is an object containing a `(num,denom)` pair.
-`x.num` is `num` and `x.denom` is `denom`.
+A packed `(num, denom)` pair with element type `T`. Access fields as `x.num` and
+`x.denom`. Arguments of type `Gray` are automatically unwrapped; mismatched numeric
+types are promoted.
 
-Algebraically, `NumDenom` objects act like 2-vectors, and can be added and multiplied
-by scalars:
+`NumDenom` objects act as 2-vectors under arithmetic — addition and scalar
+multiplication operate component-wise on both fields:
 
-    nd1 + nd2 = NumDenom(nd1.num + nd2.num, nd1.denom + nd2.denom)
-    2*nd      = NumDenom(2*nd.num, 2*nd.denom)
+    nd1 + nd2  →  NumDenom(nd1.num + nd2.num, nd1.denom + nd2.denom)
+    nd1 - nd2  →  NumDenom(nd1.num - nd2.num, nd1.denom - nd2.denom)
+    c * nd     →  NumDenom(c*nd.num, c*nd.denom)
+    nd / c     →  NumDenom(nd.num/c, nd.denom/c)
 
-Note that this is *not* what you'd get from normal arithmetic with ratios, where, e.g.,
-`2*nd` would be expected to produce `NumDenom(2*nd.num, nd.denom)`.
-The reason for calling these `*` and `+` is for use in `Interpolations.jl`, because it
-allows interpolation to be performed on "both arrays" at once without
-recomputing the interpolation coefficients. See the documentation for information
-about how this is used for performing aperturered mismatch computations.
+This vector-space algebra (rather than ratio algebra) is intentional: it allows
+`Interpolations.jl` to interpolate numerator and denominator jointly without
+recomputing interpolation weights, enabling efficient aperture-windowed mismatch
+computations.
 
-As a consequence, there is no `convert(Float64, nd::NumDenom)` method, because the algebra
-above breaks any pretense that `NumDenom` numbers are somehow equivalent to ratios.
-If you want to convert to a ratio, see [`ratio`](@ref).
+As a consequence, `convert(Float64, ::NumDenom)` is deliberately not defined, because
+the component-wise arithmetic breaks the ratio interpretation. Use [`ratio`](@ref) to
+convert to a scalar ratio.
 """
 struct NumDenom{T <: Number}
     num::T
@@ -96,20 +107,38 @@ function Base.show(io::IO, p::NumDenom)
     return
 end
 
+"""
+    MismatchArray{ND,N,A}
+
+A `CenterIndexedArray` whose elements are [`NumDenom`](@ref) pairs, representing
+packed numerator/denominator mismatch data over a range of shifts.
+
+The axes are centered at zero, so `axes(D, k)` runs from `-maxshift(D)[k]` to
+`+maxshift(D)[k]`; an index value of `(i, j, ...)` corresponds to a shift of
+`(i, j, ...)` pixels.
+
+    D = MismatchArray(num::AbstractArray, denom::AbstractArray)
+
+Pack same-size arrays `num` and `denom` into a `MismatchArray` with centered axes of
+half-size `size(num) .÷ 2`. Element type is `NumDenom{promote_type(eltype(num), eltype(denom))}`.
+
+    D = MismatchArray(T, dims::Dims)
+    D = MismatchArray(T, dims::Integer...)
+
+Allocate an uninitialized `MismatchArray` with element type `NumDenom{T}` and the given
+dimensions. Useful for pre-allocating output before filling with [`copyto!`](@ref).
+"""
 const MismatchArray{ND <: NumDenom, N, A} = CenterIndexedArray{ND, N, A}
 
 """
-    mxs = maxshift(D)
+    mxs = maxshift(D::MismatchArray)
 
-Return the `maxshift` value used to compute the mismatch array `D`.
+Return the half-size of the `MismatchArray` `D` as a tuple of integers — i.e., the
+maximum shift (in pixels, per dimension) that was searched when computing the mismatch.
+Equivalent to `D.halfsize`.
 """
 maxshift(A::MismatchArray) = A.halfsize
 
-"""
-`numdenom = MismatchArray(num, denom)` packs the array-pair
-`(num,denom)` into a single `MismatchArray`.  This is useful
-preparation for interpolation.
-"""
 function (::Type{M})(num::AbstractArray, denom::AbstractArray) where {M <: MismatchArray}
     size(num) == size(denom) || throw(DimensionMismatch("num and denom must have the same size"))
     T = promote_type(eltype(num), eltype(denom))
@@ -144,9 +173,16 @@ end
 
 # The next are mostly used just for testing
 """
-`mms = mismatcharrays(nums, denoms)` packs array-of-arrays num/denom pairs as an array-of-MismatchArrays.
+    mms = mismatcharrays(nums, denom::AbstractArray{<:Number})
+    mms = mismatcharrays(nums, denoms::AbstractArray{<:AbstractArray})
 
-`mms = mismatcharrays(nums, denom)`, for `denom` a single array, uses the same `denom` array for all `nums`.
+Pack array-of-arrays `(num, denom)` pairs into an `Array{MismatchArray}`.
+
+The first form uses the same `denom` array for every entry in `nums`. The second form
+pairs each `nums[i]` with the corresponding `denoms[i]`; `nums` and `denoms` must have
+the same size.
+
+Returns an `Array{MismatchArray}` with the same shape as `nums`.
 """
 function mismatcharrays(nums::AbstractArray{A}, denom::AbstractArray{T}) where {A <: AbstractArray, T <: Number}
     first = true
@@ -179,8 +215,17 @@ function mismatcharrays(nums::AbstractArray{A1}, denoms::AbstractArray{A2}) wher
 end
 
 """
-`num, denom = separate(mm)` splits an `AbstractArray{NumDenom}` into separate
-numerator and denominator arrays.
+    num, denom = separate(data::AbstractArray{NumDenom{T}})
+    num, denom = separate(mm::MismatchArray)
+    nums, denoms = separate(mma::AbstractArray{<:MismatchArray})
+
+Split packed [`NumDenom`](@ref) data into separate numerator and denominator arrays.
+
+- For a plain `AbstractArray{NumDenom{T}}`, returns a pair of `Array{T}` with the same
+  size and linear indexing as `data`.
+- For a [`MismatchArray`](@ref), returns a pair of `CenterIndexedArray{T}`, preserving
+  the centered axes (so index ranges correspond to shift values).
+- For an array of `MismatchArray`s, returns a pair of `Array{CenterIndexedArray{T}}`.
 """
 function separate(data::AbstractArray{NumDenom{T}}) where {T}
     num = Array{T}(undef, size(data))
@@ -210,10 +255,14 @@ end
 
 """
     r = ratio(nd::NumDenom, thresh, fillval=NaN)
+    r = ratio(r::Real, thresh, fillval=NaN)
 
-Return `nd.num/nd.denom`, unless `nd.denom < thresh`, in which case return `fillval` converted
-to the same type as the ratio.
-Choosing a `thresh` of zero will always return the ratio.
+Return the ratio `nd.num/nd.denom`, or `fillval` (converted to the ratio type) when
+`nd.denom < thresh`. Setting `thresh = 0` always returns the ratio.
+
+The second form accepts a plain `Real` and returns it unchanged, regardless of `thresh`
+and `fillval`. This allows callers to handle both [`NumDenom`](@ref) and pre-computed
+ratio arrays uniformly.
 """
 @inline function ratio(nd::NumDenom{T}, thresh, fillval = convert(T, NaN)) where {T}
     r = nd.num / nd.denom
@@ -237,11 +286,21 @@ end
 #### Utility functions ####
 
 """
-`index = indmin_mismatch(numdenom, thresh)` returns the location of
-the minimum value of what is effectively `num./denom`.  However, it
-considers only those points for which `denom .> thresh`; moreover, it
-will never choose an edge point.  `index` is a CartesianIndex into the
-arrays.
+    index = indmin_mismatch(numdenom::MismatchArray, thresh::Real)
+    index = indmin_mismatch(r::CenterIndexedArray{<:Number})
+
+Return the `CartesianIndex` of the minimum mismatch, excluding edge points.
+
+The first form operates on a [`MismatchArray`](@ref): it computes `num/denom` at each
+interior point and finds the minimum among points where `denom > thresh`. The second
+form operates on a pre-computed ratio array `r` of plain numbers and finds the interior
+minimum unconditionally.
+
+"Edge points" are the outermost index value on each side of every dimension; they are
+always excluded from consideration.
+
+If no valid point is found (e.g., all `denom ≤ thresh`), returns a zero
+`CartesianIndex` — check for this case before using the result as an array index.
 """
 function indmin_mismatch(numdenom::MismatchArray{NumDenom{T}, N}, thresh::Real) where {T, N}
     imin = CartesianIndex(ntuple(d -> 0, Val(N)))
@@ -278,17 +337,22 @@ trimedges(r::AbstractUnitRange) = (first(r) + 1):(last(r) - 1)
 ### Miscellaneous
 
 """
-`datahp = highpass([T], data, sigma)` returns a highpass-filtered
-version of `data`, with all negative values truncated at 0.  The
-highpass is computed by subtracting a lowpass-filtered version of
-data, using Gaussian filtering of width `sigma`.  As it is based on
-`Image.jl`'s Gaussian filter, it gracefully handles `NaN` values.
+    datahp = highpass([T], data, sigma)
 
-If you do not wish to highpass-filter along a particular axis, put
-`Inf` into the corresponding slot in `sigma`.
+Return a high-pass–filtered version of `data` with negative values clamped to zero.
+The high-pass is computed by subtracting a Gaussian-smoothed copy of `data`
+(via `ImageFiltering.jl`), which gracefully handles `NaN` values.
 
-You may optionally specify the element type of the result, which for
-`Integer` or `FixedPoint` inputs defaults to `Float32`.
+`sigma` must be an iterable (e.g., a tuple or vector) with one width per dimension of
+`data`. To skip filtering along a particular axis, set the corresponding entry to `Inf`
+(the input is then returned as-is, converted to `Array{T}`, with no subtraction or
+clamping applied).
+
+The optional first argument `T` sets the element type of the output. For `Integer` or
+`FixedPoint` inputs the default is `Float32`; for `AbstractFloat` inputs the default
+is the input element type.
+
+See also [`PreprocessSNF`](@ref) for a combined shot-noise–filtering preprocessor.
 """
 function highpass(::Type{T}, data::AbstractArray, sigma) where {T}
     if any(isinf, sigma)
@@ -303,21 +367,32 @@ highpass(data::AbstractArray{T}, sigma) where {T <: AbstractFloat} = highpass(T,
 highpass(data::AbstractArray, sigma) = highpass(Float32, data, sigma)
 
 """
-`pp = PreprocessSNF(bias, sigmalp, sigmahp)` constructs an object that
-can be used to pre-process an image as `pp(img)`. The "SNF" part of
-the name means "shot-noise filtered," meaning that this preprocessor
-is specifically designed for situations in which you are dominated by
-shot noise (i.e., from photon-counting statistics).
+    pp = PreprocessSNF(bias, sigmalp, sigmahp)
 
-The processing is of the form
-```
-    imgout = bandpass(√max(0,img-bias))
-```
-i.e., the image is bias-subtracted, square-root transformed (to turn
-shot noise into constant variance), and then band-pass filtered using
-Gaussian filters of width `sigmalp` (for the low-pass) and `sigmahp`
-(for the high-pass).  You can pass `sigmalp=zeros(n)` to skip low-pass
-filtering, and `sigmahp=fill(Inf, n)` to skip high-pass filtering.
+Construct a shot-noise–filtered preprocessor. Call it as `pp(img)` to preprocess an
+image. All arguments are stored as `Float32` (or `Vector{Float32}`), so `Float64`
+inputs are silently converted.
+
+The "SNF" name stands for "shot-noise filtered": this preprocessor is designed for
+photon-counting (Poisson) data, where the variance equals the mean.
+
+Processing steps:
+1. Subtract `bias` and clamp to zero: `A′ = max(0, img - bias)`
+2. Square-root transform to stabilize variance: `A″ = √A′`
+3. High-pass filter with Gaussian width `sigmahp` (subtracts a low-pass Gaussian)
+4. Low-pass filter with Gaussian width `sigmalp`
+
+`sigmalp` and `sigmahp` must each be a vector of length `ndims(img)`. Pass
+`sigmalp = zeros(ndims(img))` to skip low-pass filtering; pass
+`sigmahp = fill(Inf, ndims(img))` to skip high-pass filtering.
+
+When called on a `SubArray`, `pp` extends the view to the full parent (via
+[`paddedview`](@ref)) before processing, then trims the result back to the original
+index range (via [`trimmedview`](@ref)). This preserves any padding context around
+the sub-region.
+
+If `ImageMetadata` is loaded, `pp` also accepts `ImageMeta` arrays and propagates
+image properties to the output.
 """
 mutable struct PreprocessSNF  # Shot-noise filtered
     const bias::Float32
@@ -351,9 +426,17 @@ end
 
 
 """
-`Apad = paddedview(A)`, for a SubArray `A`, returns a SubArray that
-extends to the full parent along any non-sliced dimensions of the
-parent. See also [`trimmedview`](@ref).
+    Apad = paddedview(A::SubArray)
+
+Return a `SubArray` of `A`'s parent that extends to the full parent size along every
+dimension of `A` that was indexed by a `UnitRange`. Dimensions indexed by a scalar are
+still dropped (as usual for `SubArray`), and dimensions indexed by a `Slice` are
+unchanged.
+
+Only `Slice`, `Real`, and `UnitRange` index types are supported; any other index type
+throws an error.
+
+See also [`trimmedview`](@ref).
 """
 paddedview(A::SubArray) = _paddedview(A, (), (), A.indices...)
 _paddedview(A::SubArray{T, N, P, I}, newindexes, newsize) where {T, N, P, I} =
@@ -372,8 +455,16 @@ pdsize(A, newsize, d, i::Real) = newsize
 pdsize(A, newsize, d, i::UnitRange) = tuple(newsize..., size(A, d))
 
 """
-`B = trimmedview(Bpad, A::SubArray)` returns a SubArray `B` with
-`axes(B) = axes(A)`. `Bpad` must have the same size as `paddedview(A)`.
+    B = trimmedview(Bpad::AbstractArray, A::SubArray)
+
+Return a view `B` of `Bpad` with `axes(B) == axes(A)`.
+
+`Bpad` must be an `AbstractArray` with the same size as `paddedview(A)` — typically
+it is the result of an operation applied to `paddedview(A)`. Dimensions of `A` that
+were indexed by a scalar are skipped (they are dropped in `A`); all other dimensions
+are sliced with the original index range from `A`.
+
+See also [`paddedview`](@ref).
 """
 function trimmedview(Bpad, A::SubArray)
     ndims(Bpad) == ndims(A) || throw(DimensionMismatch("dimensions $(ndims(Bpad)) and $(ndims(A)) of Bpad and A must match"))
@@ -390,7 +481,13 @@ _trimmedview(Bpad, P, d, newindexes) = view(Bpad, newindexes...)
     return _trimmedview(Bpad, P, d + 1, (newindexes..., index), indexes...)
 end
 
-# For faster and type-stable slicing
+"""
+    ColonFun()(i::Int) -> Colon()
+
+A callable singleton that returns `Colon()` for any integer argument.
+Used in place of `Colon()` directly where type-stable, composable slicing
+is needed (e.g., constructing index tuples programmatically).
+"""
 struct ColonFun end
 ColonFun(::Int) = Colon()
 
