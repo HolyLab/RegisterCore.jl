@@ -491,7 +491,7 @@ are sliced with the original index range from `A`.
 
 See also [`paddedview`](@ref).
 """
-function trimmedview(Bpad, A::SubArray)
+function trimmedview(Bpad::AbstractArray, A::SubArray)
     ndims(Bpad) == ndims(A) || throw(DimensionMismatch("dimensions $(ndims(Bpad)) and $(ndims(A)) of Bpad and A must match"))
     return _trimmedview(Bpad, A.parent, 1, (), A.indices...)
 end
