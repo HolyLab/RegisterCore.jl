@@ -112,6 +112,20 @@ end
     af = float.(a)
     ahp = highpass(af, (2,))
     @test all(x -> abs(x) < 1.0e-12, ahp)
+
+    # in-place variants
+    out = zeros(Float64, 4)
+    highpass!(out, af, (2,))
+    @test all(x -> abs(x) < 1.0e-12, out)
+
+    af2 = copy(af)
+    highpass!(af2, (2,))
+    @test all(x -> abs(x) < 1.0e-12, af2)
+
+    # inf sigma (skip filtering)
+    out2 = zeros(Float32, 4)
+    highpass!(out2, a, (Inf,))
+    @test out2 == Float32.(a)
 end
 
 @testset "PreprocessSNF" begin

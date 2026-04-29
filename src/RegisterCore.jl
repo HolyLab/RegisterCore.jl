@@ -16,6 +16,7 @@ export
     # functions
     argmin_mismatch,
     highpass,
+    highpass!,
     maxshift,
     mismatcharrays,
     ratio,
@@ -41,7 +42,7 @@ Core types and utilities for image registration mismatch computations.
 - [`maxshift`](@ref): return the maximum-shift half-size of a `MismatchArray`
 - [`mismatcharrays`](@ref): pack array-of-arrays pairs into an array of `MismatchArray`s
 - [`argmin_mismatch`](@ref): find the shift index of the minimum mismatch
-- [`highpass`](@ref): high-pass filter an image (Gaussian-based, NaN-safe)
+- [`highpass`](@ref) / [`highpass!`](@ref): high-pass filter an image (Gaussian-based, NaN-safe)
 - [`paddedview`](@ref) / [`trimmedview`](@ref): extend/trim a `SubArray` to/from its parent
 """
 RegisterCore
@@ -342,19 +343,27 @@ trimedges(r::AbstractUnitRange) = (first(r) + 1):(last(r) - 1)
 
 """
     datahp = highpass([T], data, sigma)
+    highpass!(out, data, sigma)
+    highpass!(data, sigma)
 
-Return a high-pass–filtered version of `data` with negative values clamped to zero.
-The high-pass is computed by subtracting a Gaussian-smoothed copy of `data`
-(via `ImageFiltering.jl`), which gracefully handles `NaN` values.
+Return (or write in-place) a high-pass–filtered version of `data` with negative values
+clamped to zero. The high-pass is computed by subtracting a Gaussian-smoothed copy of
+`data` (via `ImageFiltering.jl`), which gracefully handles `NaN` values.
 
 `sigma` must be an iterable (e.g., a tuple or vector) with one width per dimension of
 `data`. To skip filtering along a particular axis, set the corresponding entry to `Inf`
 (the input is then returned as-is, converted to `Array{T}`, with no subtraction or
 clamping applied).
 
-The optional first argument `T` sets the element type of the output. For `Integer` or
-`FixedPoint` inputs the default is `Float32`; for `AbstractFloat` inputs the default
-is the input element type.
+For `highpass`, the optional first argument `T` sets the element type of the output:
+- `highpass(T, data, sigma)` — allocates an output of element type `T`
+- `highpass(data, sigma)` — `T` defaults to `eltype(data)` for `AbstractFloat` inputs,
+  or `Float32` for `Integer`/`FixedPoint` inputs
+
+For `highpass!`, the output element type is `eltype(out)`:
+- `highpass!(out, data, sigma)` — writes result into `out`; `out` and `data` may be
+  distinct arrays (useful for pre-allocated buffers in hot loops)
+- `highpass!(data, sigma)` — filters `data` in-place
 
 See also [`PreprocessSNF`](@ref) for a combined shot-noise–filtering preprocessor.
 """
@@ -369,6 +378,18 @@ function highpass(::Type{T}, data::AbstractArray, sigma) where {T}
 end
 highpass(data::AbstractArray{T}, sigma) where {T <: AbstractFloat} = highpass(T, data, sigma)
 highpass(data::AbstractArray, sigma) = highpass(Float32, data, sigma)
+
+function highpass!(out::AbstractArray, data::AbstractArray, sigma)
+    T = eltype(out)
+    if any(isinf, sigma)
+        out .= data
+    else
+        out .= data .- imfilter(T, data, KernelFactors.IIRGaussian(T, (sigma...,)), NA())
+    end
+    out[out .< 0] .= 0
+    return out
+end
+highpass!(data::AbstractArray, sigma) = highpass!(data, data, sigma)
 
 """
     pp = PreprocessSNF(bias, sigmalp, sigmahp)
