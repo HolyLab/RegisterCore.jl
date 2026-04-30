@@ -127,7 +127,7 @@ half-size `size(num) .÷ 2`. Element type is `NumDenom{promote_type(eltype(num),
     D = MismatchArray(T, dims::Integer...)
 
 Allocate an uninitialized `MismatchArray` with element type `NumDenom{T}` and the given
-dimensions. Useful for pre-allocating output before filling with [`copyto!`](@ref).
+dimensions. Useful for pre-allocating output before filling with `copyto!`.
 """
 const MismatchArray{ND <: NumDenom, N, A} = CenterIndexedArray{ND, N, A}
 
