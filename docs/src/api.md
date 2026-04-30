@@ -1,5 +1,9 @@
 # API
 
+```@docs
+RegisterCore
+```
+
 ## Types
 
 ```@docs
@@ -12,7 +16,7 @@ PreprocessSNF
 ## MismatchArray functions
 
 ```@docs
-indmin_mismatch
+argmin_mismatch
 maxshift
 mismatcharrays
 ratio
