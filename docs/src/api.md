@@ -27,6 +27,7 @@ separate
 
 ```@docs
 highpass
+highpass!
 paddedview
 trimmedview
 ```

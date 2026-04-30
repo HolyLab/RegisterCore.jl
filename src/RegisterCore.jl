@@ -379,6 +379,12 @@ end
 highpass(data::AbstractArray{T}, sigma) where {T <: AbstractFloat} = highpass(T, data, sigma)
 highpass(data::AbstractArray, sigma) = highpass(Float32, data, sigma)
 
+"""
+    highpass!(out, data, sigma)
+    highpass!(data, sigma)
+
+In-place variant of [`highpass`](@ref). See that function for full documentation.
+"""
 function highpass!(out::AbstractArray, data::AbstractArray, sigma)
     T = eltype(out)
     if any(isinf, sigma)
