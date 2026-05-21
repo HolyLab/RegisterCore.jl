@@ -425,10 +425,10 @@ the sub-region.
 If `ImageMetadata` is loaded, `pp` also accepts `ImageMeta` arrays and propagates
 image properties to the output.
 """
-mutable struct PreprocessSNF  # Shot-noise filtered
-    const bias::Float32
-    const sigmalp::Vector{Float32}
-    const sigmahp::Vector{Float32}
+struct PreprocessSNF  # Shot-noise filtered
+    bias::Float32
+    sigmalp::Vector{Float32}
+    sigmahp::Vector{Float32}
 end
 # PreprocessSNF(bias::T, sigmalp, sigmahp) = PreprocessSNF{T}(bias, T[sigmalp...], T[sigmahp...])
 
